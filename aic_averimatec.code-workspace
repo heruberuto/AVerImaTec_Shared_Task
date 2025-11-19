@@ -1,0 +1,28 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../AVerImaTeC"
+		},
+		{
+			"path": "../../../data/factcheck/averimatec"
+		}
+	],
+	"settings": {
+		"workbench.colorCustomizations": {
+			"activityBar.activeBackground": "#0081d950",
+			"activityBar.background": "#0081d950",
+			"activityBarBadge.background": "#ff9fd8",
+			"activityBarBadge.foreground": "#15202b",
+			"sash.hoverBorder": "#0081d950",
+			"statusBar.background": "#0063a650",
+			"statusBarItem.hoverBackground": "#0081d950",
+			"statusBarItem.remoteBackground": "#0063a650",
+			"titleBar.activeBackground": "#0063a650",
+			"titleBar.inactiveBackground": "#0063a699"
+		},
+		"peacock.remoteColor": "#0063A650"
+	}
+}
