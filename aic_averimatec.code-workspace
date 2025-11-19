@@ -24,5 +24,12 @@
 			"titleBar.inactiveBackground": "#0063a699"
 		},
 		"peacock.remoteColor": "#0063A650"
+	},
+	"python.analysis.extraPaths": [
+		"/mnt/personal/ullriher/aic_averimatec/src"
+	],
+	"python.envFile": "/mnt/personal/ullriher/aic_averimatec/.env",
+	"terminal.integrated.env.linux": {
+		"PYTHONPATH": "/mnt/personal/ullriher/aic_averimatec/src"
 	}
 }
