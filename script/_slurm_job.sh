@@ -20,7 +20,7 @@ source /mnt/personal/ullriher/venvs/aug25/bin/activate
 
 # load your .env
 export $(grep -v '^#' .env | xargs)
- 
+
 # export SSL_CERT_FILE=~/ollama.crt
 PORT=$(shuf -i 2000-9999 -n 1)
 while lsof -i TCP:$PORT &>/dev/null; do
