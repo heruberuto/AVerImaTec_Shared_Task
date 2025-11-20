@@ -3,164 +3,198 @@ import pickle as pkl
 import torch
 from PIL import Image
 import sys
-sys.path.append('..')
+
+sys.path.append("..")
 import re
 import random
 
-angles=[Image.ROTATE_90,Image.ROTATE_180,Image.ROTATE_270]
-resizes=[(300,300),(100,500),(500,100)]
+angles = [Image.ROTATE_90, Image.ROTATE_180, Image.ROTATE_270]
+resizes = [(300, 300), (100, 500), (500, 100)]
 
-root_dir=os.path.abspath('..')
-text_val_demo=open(os.path.join(root_dir,
-                                "templates/evid_evaluation_text.txt")).readlines()
-text_val_demo="".join(text_val_demo)
+root_dir = os.path.abspath("..")
+text_val_demo = open(os.path.join(root_dir, "templates/evid_evaluation_text.txt")).readlines()
+text_val_demo = "".join(text_val_demo)
 
-seperate_val_demo=open(os.path.join(root_dir,
-                                "templates/evid_evaluation_text_seperate.txt")).readlines()
-seperate_val_demo="".join(seperate_val_demo)
+seperate_val_demo = open(os.path.join(root_dir, "templates/evid_evaluation_text_seperate.txt")).readlines()
+seperate_val_demo = "".join(seperate_val_demo)
 
 from templates import evid_evaluation_joint
-joint_val_demo=''.join([evid_evaluation_joint.instruction,
-                        evid_evaluation_joint.exp_first,
-                        evid_evaluation_joint.exp_second,])
 
-ques_val_demo="".join(open(os.path.join(root_dir,"templates/ques_evaluation_text.txt")).readlines())
-justi_val_demo="".join(open(os.path.join(root_dir,"templates/justi_evaluation_text.txt")).readlines())
+joint_val_demo = "".join(
+    [
+        evid_evaluation_joint.instruction,
+        evid_evaluation_joint.exp_first,
+        evid_evaluation_joint.exp_second,
+    ]
+)
+
+ques_val_demo = "".join(open(os.path.join(root_dir, "templates/ques_evaluation_text.txt")).readlines())
+justi_val_demo = "".join(open(os.path.join(root_dir, "templates/justi_evaluation_text.txt")).readlines())
+
 
 def split_string_by_words(text, word_list):
     # Create a regex pattern with word boundaries for each word in the list
-    pattern = r'(' + r'|'.join(map(re.escape, word_list)) + r')'
+    pattern = r"(" + r"|".join(map(re.escape, word_list)) + r")"
     # Use re.split to split the text and keep the delimiters
     split_result = re.split(pattern, text)
     # Remove empty strings and strip spaces
     split_result = [s.strip() for s in split_result if s.strip()]
     return split_result
 
-def gen_incontext_input_textonly(pred,ref,demos):
-    texts=[]
+
+def gen_incontext_input_textonly(pred, ref, demos):
+    texts = []
     texts.append(demos)
-    texts.append("\n[PRED]: "+pred)
-    texts.append("[REF]: "+ref)
-    texts='\n'.join(texts)
+    texts.append("\n[PRED]: " + pred)
+    texts.append("[REF]: " + ref)
+    texts = "\n".join(texts)
     return texts
 
+
 def score_extraction(feedback):
-    pred_in_ref=feedback.split('[PRED in REF]: ')[-1].split('\n')[0].split(';')[0].strip()
-    ref_in_pred=feedback.split('[REF in PRED]: ')[-1].split('\n')[0].split(';')[0].strip()
+    pred_in_ref = feedback.split("[PRED in REF]: ")[-1].split("\n")[0].split(";")[0].strip()
+    ref_in_pred = feedback.split("[REF in PRED]: ")[-1].split("\n")[0].split(";")[0].strip()
     if pred_in_ref.isdigit():
-        pred_in_ref=int(pred_in_ref)
+        pred_in_ref = int(pred_in_ref)
     else:
-        pred_in_ref=0
+        pred_in_ref = 0
     if ref_in_pred.isdigit():
-        ref_in_pred=int(ref_in_pred)
+        ref_in_pred = int(ref_in_pred)
     else:
-        ref_in_pred=0
-    score={
-        'ref_in_pred':ref_in_pred,
-        'pred_in_ref':pred_in_ref
-    }
-    if len(feedback.split('[PRED in REF]: ')[-1].split('\n')[0].split(';')):
-        score['detailed_ref_in_pred']=';'.join(feedback.split('[REF in PRED]: ')[-1].split('\n')[0].split(';')[1:]).strip()
-        score['detailed_pred_in_ref']=';'.join(feedback.split('[PRED in REF]: ')[-1].split('\n')[0].split(';')[1:]).strip()
+        ref_in_pred = 0
+    score = {"ref_in_pred": ref_in_pred, "pred_in_ref": pred_in_ref}
+    if len(feedback.split("[PRED in REF]: ")[-1].split("\n")[0].split(";")):
+        score["detailed_ref_in_pred"] = ";".join(
+            feedback.split("[REF in PRED]: ")[-1].split("\n")[0].split(";")[1:]
+        ).strip()
+        score["detailed_pred_in_ref"] = ";".join(
+            feedback.split("[PRED in REF]: ")[-1].split("\n")[0].split(";")[1:]
+        ).strip()
     return score
 
-def seperate_text_val(gt_set, pred_set,
-                      path, eval_name, llm_name, mllm_name, save_num, 
-                      debug_mode=False, eval_type=None):
-    #scores={user:{} for user in all_users_pred}
-    demonstrations=open(os.path.join(path,"templates/ques_evaluation_text.txt")).readlines()
-    demonstrations="".join(demonstrations)
 
-    if 'gemini' in eval_name:
+def seperate_text_val(
+    gt_set, pred_set, path, eval_name, llm_name, mllm_name, save_num, debug_mode=False, eval_type=None
+):
+    # scores={user:{} for user in all_users_pred}
+    demonstrations = open(os.path.join(path, "templates/ques_evaluation_text.txt")).readlines()
+    demonstrations = "".join(demonstrations)
+
+    if "gemini" in eval_name:
         from google import genai
         from private_info import API_keys
         from google.genai.types import HttpOptions
-        model = genai.Client(http_options=HttpOptions(api_version="v1"),api_key=API_keys.GEMINI_API_KEY)
-    elif 'gemma' in eval_name:
+
+        model = genai.Client(http_options=HttpOptions(api_version="v1"), api_key=API_keys.GEMINI_API_KEY)
+    elif "gemma" in eval_name:
         import torch
         from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+
         llm = Gemma3ForConditionalGeneration.from_pretrained(
-            eval_name, device_map="auto", torch_dtype=torch.bfloat16,
+            eval_name,
+            device_map="auto",
+            torch_dtype=torch.bfloat16,
         )
         processor = AutoProcessor.from_pretrained(eval_name)
-        model={
-            'model':llm.eval(),
-            'processor':processor
-        }
-    
-    raw_response={}
-    processed_response={}
+        model = {"model": llm.eval(), "processor": processor}
+
+    raw_response = {}
+    processed_response = {}
     for req_id in pred_set:
-        if 'gemini' in llm_name:
-            pred=[row for k,row in enumerate(pred_set[req_id])]
+        if "gemini" in llm_name:
+            pred = [row for k, row in enumerate(pred_set[req_id])]
         else:
-            pred=[str(k+1)+'. '+row for k,row in enumerate(pred_set[req_id])]
-        gt=[str(k+1)+'. '+row for k,row in enumerate(gt_set[req_id])]
-        
-        ref=' '.join(gt)
-        pred=' '.join(pred)
-        
-        print ("###",req_id,"###")
-        print ('GT evid:\n\t',ref)
-        print ('Pred evid:\n\t',pred)
-        incontext_input=gen_incontext_input_textonly(pred,ref,demonstrations)
-        if 'gemini' in eval_name:
+            pred = [str(k + 1) + ". " + row for k, row in enumerate(pred_set[req_id])]
+        gt = [str(k + 1) + ". " + row for k, row in enumerate(gt_set[req_id])]
+
+        ref = " ".join(gt)
+        pred = " ".join(pred)
+
+        print("###", req_id, "###")
+        print("GT evid:\n\t", ref)
+        print("Pred evid:\n\t", pred)
+        incontext_input = gen_incontext_input_textonly(pred, ref, demonstrations)
+        if "gemini" in eval_name:
             response = model.models.generate_content(
-                #model='gemini-2.5-pro-exp-03-25',
-                model='gemini-2.0-flash-001',
-                contents=incontext_input
+                # model='gemini-2.5-pro-exp-03-25',
+                model="gemini-2.0-flash-001",
+                contents=incontext_input,
             )
-            feedback=response.text
-        elif 'gemma' in eval_name:
-            messages=[
-                {"role":"user","content":[{'type':'text', 'text': incontext_input}]}
-                ]
-            inputs= model["processor"].apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=True,
-                return_dict=True, return_tensors="pt"
-                ).to(model['model'].device)
+            feedback = response.text
+        elif "gemma" in eval_name:
+            messages = [{"role": "user", "content": [{"type": "text", "text": incontext_input}]}]
+            inputs = (
+                model["processor"]
+                .apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt"
+                )
+                .to(model["model"].device)
+            )
             with torch.no_grad():
-                generated_ids = model['model'].generate(**inputs, max_new_tokens=1024)
+                generated_ids = model["model"].generate(**inputs, max_new_tokens=1024)
             generated_ids_trimmed = [
                 out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
             ]
-            feedback = model["processor"].batch_decode(
-                generated_ids_trimmed, skip_special_tokens=True
-            )[0]        
-        
-        processed_score=score_extraction(feedback)
-        raw_response[req_id]=feedback
-        processed_response[req_id]=processed_score
-        if debug_mode:
-            print (feedback,'\n\n')
-    pkl.dump(raw_response,open(os.path.join(path,
-                               "open_evaluation",
-                               'intermediate_info/'+'_'.join([llm_name,mllm_name])+'_val_text_'+str(save_num)+'_raw.pkl'),'wb'))
-    pkl.dump(processed_response,open(os.path.join(path,
-                                     "open_evaluation",
-                                     'intermediate_info/'+'_'.join([llm_name,mllm_name])+'_val_text_'+str(save_num)+'_processed.pkl'),'wb'))
-    return 
+            feedback = model["processor"].batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
 
-def gen_img_text_split(evid_context,pred=False):
-    inputs=[]
-    for i,evid in enumerate(evid_context):
-        evid_text=evid['text']+' '
-        if i==0 and pred:
-            evid_text="[REF]: "+evid_text
-        elif i==0:
-            evid_text='[PRED]: '+evid_text
-        evid_images=evid['images']
-        if len(evid_images)==0:
-            inputs.append((str(i+1)+". "+evid_text))
+        processed_score = score_extraction(feedback)
+        raw_response[req_id] = feedback
+        processed_response[req_id] = processed_score
+        if debug_mode:
+            print(feedback, "\n\n")
+    pkl.dump(
+        raw_response,
+        open(
+            os.path.join(
+                path,
+                "open_evaluation",
+                "intermediate_info/"
+                + "_".join([llm_name, mllm_name])
+                + "_val_text_"
+                + str(save_num)
+                + "_raw.pkl",
+            ),
+            "wb",
+        ),
+    )
+    pkl.dump(
+        processed_response,
+        open(
+            os.path.join(
+                path,
+                "open_evaluation",
+                "intermediate_info/"
+                + "_".join([llm_name, mllm_name])
+                + "_val_text_"
+                + str(save_num)
+                + "_processed.pkl",
+            ),
+            "wb",
+        ),
+    )
+    return
+
+
+def gen_img_text_split(evid_context, pred=False):
+    inputs = []
+    for i, evid in enumerate(evid_context):
+        evid_text = evid["text"] + " "
+        if i == 0 and pred:
+            evid_text = "[REF]: " + evid_text
+        elif i == 0:
+            evid_text = "[PRED]: " + evid_text
+        evid_images = evid["images"]
+        if len(evid_images) == 0:
+            inputs.append((str(i + 1) + ". " + evid_text))
         else:
-            img_token_list=re.findall(r"\[IMG_.*?\]",evid_text) # [IMG_1], [IMG_2]...
-            if len(img_token_list)==0:
-                inputs.append((str(i+1)+". "+evid_text))
+            img_token_list = re.findall(r"\[IMG_.*?\]", evid_text)  # [IMG_1], [IMG_2]...
+            if len(img_token_list) == 0:
+                inputs.append((str(i + 1) + ". " + evid_text))
             else:
-                split_string=split_string_by_words(evid_text,img_token_list)
-                for m,sp_str in enumerate(split_string):
+                split_string = split_string_by_words(evid_text, img_token_list)
+                for m, sp_str in enumerate(split_string):
                     if sp_str in img_token_list:
-                        img_idx=re.findall(r'\d+',sp_str)[0]
+                        img_idx = re.findall(r"\d+", sp_str)[0]
                         """
                         manip_type=random.randint(0,1)
                         if manip_type==0:
@@ -170,87 +204,82 @@ def gen_img_text_split(evid_context,pred=False):
                            resize_type=random.randint(0,2)
                            inputs.append(Image.open(evid_images[int(img_idx)-1]).convert('RGB').resize(resizes[resize_type]))
                         """
-                        inputs.append(Image.open(evid_images[int(img_idx)-1]).convert('RGB'))
+                        inputs.append(Image.open(evid_images[int(img_idx) - 1]).convert("RGB"))
                     else:
-                        if m==0:
-                            inputs.append(str(i+1)+". "+sp_str)
+                        if m == 0:
+                            inputs.append(str(i + 1) + ". " + sp_str)
                         else:
                             inputs.append(sp_str)
     return inputs
-    
+
+
 def val_evid_idv(model, model_name, pred_evid, ref_evid, text_val, seperate_val):
-    pred=[str(k+1)+'. '+row['text'] for k,row in enumerate(pred_evid)]
-    gt=[str(k+1)+'. '+row['text'] for k,row in enumerate(ref_evid)]
-    ref='. '.join(gt)
-    pred='. '.join(pred)
+    pred = [str(k + 1) + ". " + row["text"] for k, row in enumerate(pred_evid)]
+    gt = [str(k + 1) + ". " + row["text"] for k, row in enumerate(ref_evid)]
+    ref = ". ".join(gt)
+    pred = ". ".join(pred)
     if text_val or seperate_val:
-        #print ('GT evid:\n\t',ref)
-        #print ('Pred evid:\n\t',pred)
+        # print ('GT evid:\n\t',ref)
+        # print ('Pred evid:\n\t',pred)
         if seperate_val:
-            #print ('Seperation!')
-            incontext_input=gen_incontext_input_textonly(pred,ref,seperate_val_demo)
+            # print ('Seperation!')
+            incontext_input = gen_incontext_input_textonly(pred, ref, seperate_val_demo)
         else:
-            incontext_input=gen_incontext_input_textonly(pred,ref,text_val_demo)
-        if 'gemini' in model_name:
-            response = model.models.generate_content(
-                model='gemini-2.0-flash-001',
-                contents=incontext_input
+            incontext_input = gen_incontext_input_textonly(pred, ref, text_val_demo)
+        if "gemini" in model_name:
+            response = model.models.generate_content(model="gemini-2.0-flash-001", contents=incontext_input)
+            feedback = response.text
+        elif "gemma" in model_name:
+            messages = [{"role": "user", "content": [{"type": "text", "text": incontext_input}]}]
+            inputs = (
+                model["processor"]
+                .apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt"
                 )
-            feedback=response.text
-        elif 'gemma' in model_name:
-            messages=[
-                {"role":"user","content":[{'type':'text', 'text': incontext_input}]}
-                ]
-            inputs= model["processor"].apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=True,
-                return_dict=True, return_tensors="pt"
-                ).to(model['model'].device)
+                .to(model["model"].device)
+            )
             with torch.no_grad():
-                generated_ids = model['model'].generate(**inputs, max_new_tokens=1024)
+                generated_ids = model["model"].generate(**inputs, max_new_tokens=1024)
             generated_ids_trimmed = [
                 out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
             ]
-            feedback = model["processor"].batch_decode(
-                generated_ids_trimmed, skip_special_tokens=True
-            )[0]
+            feedback = model["processor"].batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
     else:
-        #consider inter-leaved image-text evaluation
-        inputs=[joint_val_demo]
-        ref_split=gen_img_text_split(ref_evid)
-        pred_split=gen_img_text_split(pred_evid,pred=True)
+        # consider inter-leaved image-text evaluation
+        inputs = [joint_val_demo]
+        ref_split = gen_img_text_split(ref_evid)
+        pred_split = gen_img_text_split(pred_evid, pred=True)
         inputs.extend(ref_split)
         inputs.extend(pred_split)
-        if 'gemini' in model_name:
-            response = model.models.generate_content(
-                model='gemini-2.0-flash-001',
-                contents=inputs
-                )
-            feedback=response.text
-    processed_score=score_extraction(feedback)
+        if "gemini" in model_name:
+            response = model.models.generate_content(model="gemini-2.0-flash-001", contents=inputs)
+            feedback = response.text
+    processed_score = score_extraction(feedback)
     return feedback, processed_score
 
-def compute_image_scores(model,model_name,pred_evid,ref_evid,score):
-    prompt="Given two sets of images, you need to score how similar they are, ranging from 0-10. The number of images could be different in image sets.\n"
-    prompt+='[IMG_SET_1]:'
-    ref_in_pred=re.findall(r'\(.*?\)',score['detailed_ref_in_pred'])
-    pred_in_ref=re.findall(r'\(.*?\)',score['detailed_pred_in_ref'])
-    print ('ref in pred:',ref_in_pred,'\n pred in ref',pred_in_ref)
-    image_scores={'pred_in_ref':[],'ref_in_pred':[]}
-    #print (ref_in_pred)
-    #print (pred_in_ref)
+
+def compute_image_scores(model, model_name, pred_evid, ref_evid, score):
+    prompt = "Given two sets of images, you need to score how similar they are, ranging from 0-10. The number of images could be different in image sets.\n"
+    prompt += "[IMG_SET_1]:"
+    ref_in_pred = re.findall(r"\(.*?\)", score["detailed_ref_in_pred"])
+    pred_in_ref = re.findall(r"\(.*?\)", score["detailed_pred_in_ref"])
+    print("ref in pred:", ref_in_pred, "\n pred in ref", pred_in_ref)
+    image_scores = {"pred_in_ref": [], "ref_in_pred": []}
+    # print (ref_in_pred)
+    # print (pred_in_ref)
     for detail in pred_in_ref:
-        info=detail[1:-1].split(',')
-        #print ('pred in ref:',info)
+        info = detail[1:-1].split(",")
+        # print ('pred in ref:',info)
         try:
-            pred_idx=int(info[0].split('_')[-1])
-            ref_idx=int(info[1].split('_')[-1])
-            imgs_pred=pred_evid[pred_idx-1]['images']
-            imgs_ref=ref_evid[ref_idx-1]['images']
-            if len(imgs_pred)==0 or len(imgs_ref)==0:
-                feedback='10'
+            pred_idx = int(info[0].split("_")[-1])
+            ref_idx = int(info[1].split("_")[-1])
+            imgs_pred = pred_evid[pred_idx - 1]["images"]
+            imgs_ref = ref_evid[ref_idx - 1]["images"]
+            if len(imgs_pred) == 0 or len(imgs_ref) == 0:
+                feedback = "10"
             else:
-                if 'gemini' in model_name:
-                    inputs=[prompt]
+                if "gemini" in model_name:
+                    inputs = [prompt]
                     for img in imgs_pred:
                         """
                         manip_type=random.randint(0,1)
@@ -261,23 +290,20 @@ def compute_image_scores(model,model_name,pred_evid,ref_evid,score):
                             resize_type=random.randint(0,2)
                             inputs.append(Image.open(img).convert('RGB').resize(resizes[resize_type]))
                         """
-                        inputs.append(Image.open(img).convert('RGB'))
-                    inputs.append('\n[IMG_SET_2]:')
+                        inputs.append(Image.open(img).convert("RGB"))
+                    inputs.append("\n[IMG_SET_2]:")
                     for img in imgs_ref:
-                        inputs.append(Image.open(img).convert('RGB'))
-                    inputs.append('\nPlease generate your rating with one integer:')
-                    response = model.models.generate_content(
-                        model='gemini-2.0-flash-001',
-                        contents=inputs
-                       )
-                    feedback=response.text
-                elif 'gemma' in model_name:
+                        inputs.append(Image.open(img).convert("RGB"))
+                    inputs.append("\nPlease generate your rating with one integer:")
+                    response = model.models.generate_content(model="gemini-2.0-flash-001", contents=inputs)
+                    feedback = response.text
+                elif "gemma" in model_name:
                     messages = [
                         {
                             "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt}],
-                            }]
+                            "content": [{"type": "text", "text": prompt}],
+                        }
+                    ]
                     for img in imgs_pred:
                         """
                         manip_type=random.randint(0,1)
@@ -288,128 +314,137 @@ def compute_image_scores(model,model_name,pred_evid,ref_evid,score):
                             resize_type=random.randint(0,2)
                             inputs.append(Image.open(img).convert('RGB').resize(resizes[resize_type]))
                         """
-                        messages[0]["content"].append({'type':'image','image':img})
-                    messages[0]["content"].append({'type':'text',"text": '\n[IMG_SET_2]:'})
+                        messages[0]["content"].append({"type": "image", "image": img})
+                    messages[0]["content"].append({"type": "text", "text": "\n[IMG_SET_2]:"})
                     for img in imgs_ref:
-                        messages[0]["content"].append({'type':'image','image':img})
-                    messages[0]["content"].append({'type':'text',"text": '\nPlease generate your rating with one integer:'})
-                    inputs= model["processor"].apply_chat_template(
-                        messages, add_generation_prompt=True, tokenize=True,
-                        return_dict=True, return_tensors="pt"
-                    ).to(model['model'].device)
-                    with torch.no_grad():
-                        generated_ids = model['model'].generate(**inputs, max_new_tokens=1024)
-                    generated_ids_trimmed = [
-                         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
-                    feedback = model["processor"].batch_decode(
-                        generated_ids_trimmed, skip_special_tokens=True)[0]
-        except:
-            print ('##Edge case image!!')
-            feedback='10'
-        image_scores['pred_in_ref'].append({
-            'info':info,
-            'score':feedback
-        })
-    for detail in ref_in_pred:
-        info=detail[1:-1].split(',')
-        #print ('ref in pred',info)
-        try:
-            pred_idx=int(info[1].split('_')[-1])
-            ref_idx=int(info[0].split('_')[-1])
-            imgs_pred=pred_evid[pred_idx-1]['images']
-            imgs_ref=ref_evid[ref_idx-1]['images']
-            if len(imgs_pred)==0 or len(imgs_ref)==0:
-                feedback='10'
-            else:
-                if 'gemini' in model_name:
-                    inputs=[prompt]
-                    for img in imgs_pred:                       
-                        inputs.append(Image.open(img).convert('RGB'))
-                    inputs.append('\n[IMG_SET_2]:')
-                    for img in imgs_ref:
-                        inputs.append(Image.open(img).convert('RGB'))
-                    inputs.append('\nPlease generate your rating with one integer:')
-                    response = model.models.generate_content(
-                        model='gemini-2.0-flash-001',
-                        contents=inputs
+                        messages[0]["content"].append({"type": "image", "image": img})
+                    messages[0]["content"].append(
+                        {"type": "text", "text": "\nPlease generate your rating with one integer:"}
+                    )
+                    inputs = (
+                        model["processor"]
+                        .apply_chat_template(
+                            messages,
+                            add_generation_prompt=True,
+                            tokenize=True,
+                            return_dict=True,
+                            return_tensors="pt",
                         )
-                    feedback=response.text
-                elif 'gemma' in model_name:
-                    messages = [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt}],
-                            }]
-                    for img in imgs_pred:
-                        messages[0]["content"].append({'type':'image','image':img})
-                    messages[0]["content"].append({'type':'text',"text": '\n[IMG_SET_2]:'})
-                    for img in imgs_ref:
-                        messages[0]["content"].append({'type':'image','image':img})
-                    messages[0]["content"].append({'type':'text',"text": '\nPlease generate your rating with one integer:'})
-                    inputs= model["processor"].apply_chat_template(
-                        messages, add_generation_prompt=True, tokenize=True,
-                        return_dict=True, return_tensors="pt"
-                    ).to(model['model'].device)
+                        .to(model["model"].device)
+                    )
                     with torch.no_grad():
-                        generated_ids = model['model'].generate(**inputs, max_new_tokens=1024)
+                        generated_ids = model["model"].generate(**inputs, max_new_tokens=1024)
                     generated_ids_trimmed = [
-                         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
+                        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                    ]
                     feedback = model["processor"].batch_decode(
                         generated_ids_trimmed, skip_special_tokens=True
-                 )[0]
+                    )[0]
         except:
-            print ('##Edge case image!!')
-            feedback='10'
-        image_scores['ref_in_pred'].append({
-            'info':info,
-            'score':feedback
-        })
+            print("##Edge case image!!")
+            feedback = "10"
+        image_scores["pred_in_ref"].append({"info": info, "score": feedback})
+    for detail in ref_in_pred:
+        info = detail[1:-1].split(",")
+        # print ('ref in pred',info)
+        try:
+            pred_idx = int(info[1].split("_")[-1])
+            ref_idx = int(info[0].split("_")[-1])
+            imgs_pred = pred_evid[pred_idx - 1]["images"]
+            imgs_ref = ref_evid[ref_idx - 1]["images"]
+            if len(imgs_pred) == 0 or len(imgs_ref) == 0:
+                feedback = "10"
+            else:
+                if "gemini" in model_name:
+                    inputs = [prompt]
+                    for img in imgs_pred:
+                        inputs.append(Image.open(img).convert("RGB"))
+                    inputs.append("\n[IMG_SET_2]:")
+                    for img in imgs_ref:
+                        inputs.append(Image.open(img).convert("RGB"))
+                    inputs.append("\nPlease generate your rating with one integer:")
+                    response = model.models.generate_content(model="gemini-2.0-flash-001", contents=inputs)
+                    feedback = response.text
+                elif "gemma" in model_name:
+                    messages = [
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": prompt}],
+                        }
+                    ]
+                    for img in imgs_pred:
+                        messages[0]["content"].append({"type": "image", "image": img})
+                    messages[0]["content"].append({"type": "text", "text": "\n[IMG_SET_2]:"})
+                    for img in imgs_ref:
+                        messages[0]["content"].append({"type": "image", "image": img})
+                    messages[0]["content"].append(
+                        {"type": "text", "text": "\nPlease generate your rating with one integer:"}
+                    )
+                    inputs = (
+                        model["processor"]
+                        .apply_chat_template(
+                            messages,
+                            add_generation_prompt=True,
+                            tokenize=True,
+                            return_dict=True,
+                            return_tensors="pt",
+                        )
+                        .to(model["model"].device)
+                    )
+                    with torch.no_grad():
+                        generated_ids = model["model"].generate(**inputs, max_new_tokens=1024)
+                    generated_ids_trimmed = [
+                        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                    ]
+                    feedback = model["processor"].batch_decode(
+                        generated_ids_trimmed, skip_special_tokens=True
+                    )[0]
+        except:
+            print("##Edge case image!!")
+            feedback = "10"
+        image_scores["ref_in_pred"].append({"info": info, "score": feedback})
     return image_scores
 
-def textual_val_single(ref, pred,
-                       path, eval_name, model, eval_type="",
-                       debug_mode=False):
-    #scores={user:{} for user in all_users_pred}
-    if eval_type=='justification':
-        val_demo=justi_val_demo
-    elif eval_type=='question':
-        val_demo=ques_val_demo
-        if pred[0][0].isdigit()==False:
-            pred=[str(k+1)+'. '+row for k,row in enumerate(pred)]
-        pred=' '.join(pred)
-        ref=[str(k+1)+'. '+row for k,row in enumerate(ref)]
-        ref=' '.join(ref)
-        
 
-    incontext_input=gen_incontext_input_textonly(pred,ref,val_demo)
-    if 'gemini' in eval_name:
+def textual_val_single(ref, pred, path, eval_name, model, eval_type="", debug_mode=False):
+    # scores={user:{} for user in all_users_pred}
+    if eval_type == "justification":
+        val_demo = justi_val_demo
+    elif eval_type == "question":
+        val_demo = ques_val_demo
+        if pred[0][0].isdigit() == False:
+            pred = [str(k + 1) + ". " + row for k, row in enumerate(pred)]
+        pred = " ".join(pred)
+        ref = [str(k + 1) + ". " + row for k, row in enumerate(ref)]
+        ref = " ".join(ref)
+
+    incontext_input = gen_incontext_input_textonly(pred, ref, val_demo)
+    if "gemini" in eval_name:
         response = model.models.generate_content(
-            #model='gemini-2.5-pro-exp-03-25',
-            model='gemini-2.0-flash-001',
-            contents=incontext_input
+            # model='gemini-2.5-pro-exp-03-25',
+            model="gemini-2.0-flash-001",
+            contents=incontext_input,
         )
-        feedback=response.text
-    elif 'gemma' in eval_name:
-        messages=[
-            {"role":"user","content":[{'type':'text', 'text': incontext_input}]}
-            ]
-        inputs= model["processor"].apply_chat_template(
-            messages, add_generation_prompt=True, tokenize=True,
-            return_dict=True, return_tensors="pt"
-            ).to(model['model'].device)
+        feedback = response.text
+    elif "gemma" in eval_name:
+        messages = [{"role": "user", "content": [{"type": "text", "text": incontext_input}]}]
+        inputs = (
+            model["processor"]
+            .apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt"
+            )
+            .to(model["model"].device)
+        )
         with torch.no_grad():
-            generated_ids = model['model'].generate(**inputs, max_new_tokens=1024)
+            generated_ids = model["model"].generate(**inputs, max_new_tokens=1024)
         generated_ids_trimmed = [
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
-        feedback = model["processor"].batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True
-        )[0]
-        
-    processed_score=score_extraction(feedback)
-    #raw_response[req_id]=feedback
-    #processed_response[req_id]=processed_score
+        feedback = model["processor"].batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
+
+    processed_score = score_extraction(feedback)
+    # raw_response[req_id]=feedback
+    # processed_response[req_id]=processed_score
     """
     if debug_mode:
         print (eval_type)
