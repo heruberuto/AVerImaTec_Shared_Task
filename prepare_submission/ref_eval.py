@@ -201,8 +201,8 @@ def gen_img_text_split(evid_context, pred=False):
                             rotate_angle=random.randint(0,2)
                             inputs.append(Image.open(evid_images[int(img_idx)-1]).convert('RGB').transpose(angles[rotate_angle]))
                         else:
-                           resize_type=random.randint(0,2)
-                           inputs.append(Image.open(evid_images[int(img_idx)-1]).convert('RGB').resize(resizes[resize_type]))
+                            resize_type=random.randint(0,2)
+                            inputs.append(Image.open(evid_images[int(img_idx)-1]).convert('RGB').resize(resizes[resize_type]))
                         """
                         inputs.append(Image.open(evid_images[int(img_idx) - 1]).convert("RGB"))
                     else:
@@ -399,7 +399,7 @@ def compute_image_scores(model, model_name, pred_evid, ref_evid, score):
                     feedback = model["processor"].batch_decode(
                         generated_ids_trimmed, skip_special_tokens=True
                     )[0]
-        except:
+        except:  # https://github.com/abril4416/AVerImaTeC?tab=readme-ov-file
             print("##Edge case image!!")
             feedback = "10"
         image_scores["ref_in_pred"].append({"info": info, "score": feedback})

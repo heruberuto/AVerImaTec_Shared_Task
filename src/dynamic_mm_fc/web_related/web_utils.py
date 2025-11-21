@@ -4,12 +4,13 @@ Inspired and Adopted Codes from:
 Please check and cite
 """
 
-from urllib.parse import urlparse
+import io
+from urllib.parse import urlparse, urljoin
 import re
 from PIL import Image
 import os
 from bs4 import BeautifulSoup
-import datetime
+from datetime import datetime
 
 from markdownify import MarkdownConverter
 
@@ -393,7 +394,6 @@ def postprocess_scraped(text):
 
 def scrape_naive(url):
     """Fallback scraping script."""
-    # TODO: Also scrape images
     headers = {
         "User-Agent": "Mozilla/4.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     }
@@ -409,6 +409,43 @@ def scrape_naive(url):
         page.raise_for_status()
 
         soup = BeautifulSoup(page.content, "html.parser")
+        max_images = 3
+        downloaded = 0
+        for img_tag in soup.find_all("img"):
+            if downloaded >= max_images:
+                break
+            src = (
+                img_tag.get("src")
+                or img_tag.get("data-src")
+                or img_tag.get("data-original")
+                or img_tag.get("data-lazy-src")
+            )
+            if not src:
+                srcset = img_tag.get("srcset")
+                if srcset:
+                    src = srcset.split(",")[0].strip().split(" ")[0]
+            if not src or src.startswith("data:"):
+                continue
+            if not urlparse(src).scheme:
+                src = urljoin(url, src)
+            try:
+                response = requests.get(src, stream=True, timeout=5)
+                if response.status_code != 200:
+                    continue
+                content_type = response.headers.get("content-type", "")
+                if "image" not in content_type.lower():
+                    continue
+                image = Image.open(io.BytesIO(response.content)).convert("RGB")
+                os.makedirs(IMAGE_FOLDER, exist_ok=True)
+                path_to_file = os.path.join(
+                    IMAGE_FOLDER, datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f") + ".jpg"
+                )
+                image.save(path_to_file)
+                alt_text = img_tag.get("alt") or "Image"
+                img_tag.replace_with(f"{alt_text} {path_to_file}")
+                downloaded += 1
+            except Exception:
+                continue
         # text = soup.get_text(separator='\n', strip=True)
         if soup.article:
             # News articles often use the <article> tag to mark article contents

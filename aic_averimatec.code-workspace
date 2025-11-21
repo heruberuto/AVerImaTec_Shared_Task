@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "../FEVER-8-Shared-Task"
+		},
+		{
+			"path": "../aic_averitec2/notebooks"
 		}
 	],
 	"settings": {

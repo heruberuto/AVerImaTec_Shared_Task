@@ -3,6 +3,21 @@ from dataclasses import dataclass
 
 @dataclass
 class Datapoint:
+    """
+    A dataclass representing a claim and its associated metadata.
+
+    Attributes:
+        claim (str): The text of the claim.
+        claim_id (int): The unique identifier for the claim.
+        claim_date (str, optional): The date the claim was made.
+        speaker (str, optional): The person or entity who made the claim.
+        original_claim_url (str, optional): URL to the original claim.
+        reporting_source (str, optional): The source reporting the claim.
+        location_ISO_code (str, optional): ISO code for the location relevant to the claim.
+        label (str, optional): The veracity label of the claim.
+        metadata (dict, optional): Additional metadata associated with the claim.
+    """
+
     claim: str
     claim_id: int
     claim_date: str = None
