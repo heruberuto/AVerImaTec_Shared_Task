@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --partition h200fast
+#SBATCH --partition h200
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
 #SBATCH --mem-per-cpu 96G
 #SBATCH --gres gpu:1
-#SBATCH --time 4:00:00
-#SBATCH --job-name averitec
+#SBATCH --time 24:00:00
+#SBATCH --job-name averimatec
 #SBATCH --output logs/jupyter.%j.out
 
 # Replace with your own virtual environment

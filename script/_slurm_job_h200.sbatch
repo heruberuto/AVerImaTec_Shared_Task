@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --partition amdgpufast
+#SBATCH --partition h200fast
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
 #SBATCH --mem-per-cpu 96G
 #SBATCH --gres gpu:1
 #SBATCH --time 4:00:00
-#SBATCH --job-name averitec
+#SBATCH --job-name averimatec
 #SBATCH --output logs/jupyter.%j.out
 
 # Replace with your own virtual environment
@@ -31,11 +31,11 @@ HOSTNAME=$(hostname -s)
 # Export the port so your Python app can read it
 export OLLAMA_PORT=$PORT
 export OLLAMA_HOST="$HOSTNAME:$PORT"
-export OLLAMA_MODELS="/mnt/personal/ullriher/.ollama"
+
 # Save to a file so your Python process can also load it if needed
 echo $PORT > logs/ollama.${SLURM_JOB_ID}.log
 echo "Starting Ollama server..."
-echo -e "tunnelling instructions:\nssh -N -L 11434:$HOSTNAME:$PORT ullriher@login.rci.cvut.cz"
+echo -e "tunnelling instructions:\nssh -N -L 11434:$HOSTNAME:$PORT ullriher@login3.rci.cvut.cz"
 nohup ollama serve > logs/ollama.${SLURM_JOB_ID}.log 2>&1 &
 
 

@@ -23,7 +23,8 @@
 			"titleBar.activeBackground": "#0063a650",
 			"titleBar.inactiveBackground": "#0063a699"
 		},
-		"peacock.remoteColor": "#0063A650"
+		"peacock.remoteColor": "#0063A650",
+		"editor.autoClosingBrackets": "never"
 	},
 	"python.analysis.extraPaths": [
 		"/mnt/personal/ullriher/aic_averimatec/src"
