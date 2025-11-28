@@ -15,7 +15,6 @@ def gen_incontext_input(ques, ans, demos):
 
 
 def qa_to_evid(ques, ans, llm, llm_name):
-
     # loading demonstrations
     demonstrations = open(os.path.join(root_dir, "templates/qa_to_evid_demos.txt")).readlines()
     demonstrations = "\n".join(demonstrations)
