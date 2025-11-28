@@ -5,8 +5,8 @@
 #SBATCH --mem-per-cpu 96G
 #SBATCH --gres gpu:1
 #SBATCH --time 4:00:00
-#SBATCH --job-name averimatec
-#SBATCH --output logs/jupyter.%j.out
+#SBATCH --job-name averitec
+#SBATCH --output /mnt/personal/ullriher/aic_averimatec/logs/jupyter.%j.out
 
 # Replace with your own virtual environment
 ml Python/3.12.3-GCCcore-13.3.0
@@ -16,7 +16,7 @@ ml OpenSSL/3
 source /mnt/personal/ullriher/venvs/aug25/bin/activate
 
 # Replace with absolute path to your project or sbatch from project root and comment out
-# cd ~/ullriher/aic_averitec
+cd /mnt/personal/ullriher/aic_averimatec
 
 # load your .env
 export $(grep -v '^#' .env | xargs)

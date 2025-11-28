@@ -6,7 +6,7 @@
 #SBATCH --gres gpu:1
 #SBATCH --time 72:00:00
 #SBATCH --job-name averitec
-#SBATCH --output logs/jupyter.%j.out
+#SBATCH --output /mnt/personal/ullriher/aic_averimatec/logs/jupyter.%j.out
 unset LMOD_ROOT; unset MODULESHOME; unset LMOD_PKG; unset LMOD_CMD; unset LMOD_DIR; unset FPATH; unset __LMOD_REF_COUNT_MODULEPATH; unset __LMOD_REF_COUNT__LMFILES_; unset _LMFILES_; unset _ModuleTable001_; unset _ModuleTable002_
 source /etc/profile.d/lmod.sh
 
@@ -15,6 +15,7 @@ ml Python/3.12.3-GCCcore-13.3.0
 ml CUDA/12.6.0
 ml OpenSSL/3
 
+cd /mnt/personal/ullriher/aic_averimatec
 source /mnt/personal/ullriher/venvs/aug25/bin/activate
 
 # export SSL_CERT_FILE=~/ollama.crt
