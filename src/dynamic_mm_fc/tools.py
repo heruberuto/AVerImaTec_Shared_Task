@@ -1,24 +1,17 @@
 from PIL import Image
 import requests
-from io import BytesIO
 from nltk import pos_tag, word_tokenize
 import nltk
 import numpy as np
 import json
 import os
-import re
 import pickle as pkl
-import random
-from collections import defaultdict
 from rank_bm25 import BM25Okapi
 from qwen_vl_utils import process_vision_info
 import torch
-import socket
 import io
 from urllib.parse import urlparse
 from htmldate import find_date
-import datetime
-import csv
 
 import dynamic_mm_fc.web_related.web_utils as web_utils
 import sys
