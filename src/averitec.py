@@ -29,6 +29,7 @@ class Datapoint:
     label: str = None
     metadata: dict = None
     justification: str = None
+    split: str = None
 
     @classmethod
     def from_dict(cls, json_data: dict, claim_id: int = None):
@@ -46,6 +47,7 @@ class Datapoint:
             location_ISO_code=json_data.pop("location", None),
             label=json_data.pop("label", None),
             justification=json_data.pop("justification", None),
+            split=json_data.pop("split", None),
             metadata=metadata,
         )
 

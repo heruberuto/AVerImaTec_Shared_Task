@@ -7,10 +7,13 @@ from langchain_community.vectorstores import FAISS
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from utils.chat import SimpleJSONChat
 
+import json
+
 
 @dataclass
 class RetrievalResult:
     """Container for retrieved documents with list-like interface."""
+
     documents: List[Document] = field(default_factory=list)
     images: List[Any] = field(default_factory=list)
     metadata: Dict[str, Any] = None
@@ -27,12 +30,29 @@ class RetrievalResult:
 
 class Retriever:
     """Base class for document retrieval strategies."""
+
+    def get_ris_results(
+        self, datapoint: Datapoint, max_per_image: int = 5, max_images: int = 10
+    ) -> List[Any]:
+        # if attribute ris_results, initiate it
+        if not hasattr(self, "ris_results"):
+            with open(
+                f"/mnt/personal/ullriher/aic_averimatec/logs/ris_results/pretty/{datapoint.split}_clean.json", "rb"
+            ) as f:
+                self.ris_results = json.load(f)
+        ris_results = self.ris_results.get(str(datapoint.claim_id), {})
+        result = []
+        for image in datapoint.claim_images:
+            result.append(ris_results.get(image, [])[:max_per_image])
+        return result
+
     def __call__(self, datapoint: Datapoint, *args, **kwargs) -> RetrievalResult:
         raise NotImplementedError
 
 
 class SimpleFaissRetriever(Retriever):
     """Retrieves documents using cosine similarity search in FAISS vector store."""
+
     def __init__(self, path: str, embeddings: Embeddings = None, k: int = 10):
         self.path = path
         if embeddings is None:
@@ -47,11 +67,14 @@ class SimpleFaissRetriever(Retriever):
             allow_dangerous_deserialization=True,
         )
         documents = vecstore.similarity_search(datapoint.claim, k=self.k)
-        return RetrievalResult(documents=documents)
+        result = RetrievalResult(documents=documents)
+        result.images = self.get_ris_results(datapoint)
+        return result
 
 
 class MmrFaissRetriever(Retriever):
     """Retrieves diverse documents using Maximum Marginal Relevance to reduce redundancy."""
+
     def __init__(
         self, path: str, embeddings: Embeddings = None, k: int = 10, fetch_k: int = 40, lambda_mult=0.7
     ):
@@ -72,11 +95,14 @@ class MmrFaissRetriever(Retriever):
         documents = vecstore.max_marginal_relevance_search(
             datapoint.claim, k=self.k, fetch_k=self.fetch_k, lambda_mult=self.lambda_mult
         )
-        return RetrievalResult(documents=documents)
+        result = RetrievalResult(documents=documents)
+        result.images = self.get_ris_results(datapoint)
+        return result
 
 
 class SubqueryRetriever(Retriever):
     """Multi-query retrieval using LLM-generated subqueries for comprehensive coverage."""
+
     def __init__(self, retriever: Retriever, k=10, fetch_k=50, subqueries=5, lambda_mult=0.5, model="gpt-4o"):
         self.retriever = retriever
         self.k = k
