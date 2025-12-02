@@ -15,6 +15,7 @@ from openai import OpenAI
 from rank_bm25 import BM25Okapi
 import nltk
 
+IMAGE_BASE_URL = f"https://fcheck.fel.cvut.cz/images/averimatec"
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = "sk-dummy"
 
@@ -33,7 +34,7 @@ class Evidence:
             "question": self.question,
             "answer": self.answer,
             "url": self.url,
-            "scraped_text": self.scraped_text,
+            # "scraped_text": self.scraped_text,
             "images": self.images,
         }
         if self.answer_type and False:
@@ -419,9 +420,9 @@ class GptBatchedEvidenceGenerator(GptEvidenceGenerator):
 class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
     def __init__(
         self,
-        model="gpt-4o",
+        model="gpt-5.1",
         client: SimpleJSONChat = None,
-        reference_corpus_path="/mnt/data/factcheck/averitec-data/data/train.json",
+        reference_corpus_path="/mnt/data/factcheck/averimatec/train.json",
         k=10,
     ):
         # load reference (train) corpus
@@ -431,7 +432,7 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
         # prepare tokenized bm25 corpus
         tokenized_corpus = []
         for example in self.reference_corpus:
-            tokenized_corpus.append(nltk.word_tokenize(example["claim"]))
+            tokenized_corpus.append(nltk.word_tokenize(example["claim_text"]))
 
         # initialize bm25 model
         self.bm25 = BM25Okapi(tokenized_corpus)
@@ -444,18 +445,37 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
     def format_system_prompt(
         self, retrieval_result: RetrievalResult, few_shot_examples, author=None, date=None, medium=None
     ) -> str:
+        k = int(os.environ.get("retrieval_k", 7))
         # alternative for not outputing 10 every time - maybe better for classfiers (not problem now): (There is no need to output all 10 questions if you know that the questions contain all necessary information for fact-checking of the claim)
-        result = "You are a professional fact checker, formulate up to 10 questions that cover all the facts needed to validate whether the factual statement (in User message) is true, false, uncertain or a matter of opinion. "
+        result = "You are a professional fact checker of image-text claims, formulate up to 10 questions that cover all the facts needed to validate whether the factual statement (in User message) is true, false, uncertain or a matter of opinion. "
+        result += (
+            "The claim consists of a textual statement and "
+            + str(len(retrieval_result.images))
+            + " image"
+            + ("s" if len(retrieval_result.images) > 1 else "")
+            + " associated with the claim."
+        )
         if author and date:
             result += "The claim was made by " + author + " on " + date
             if medium:
                 result += " via " + medium
             result += ".\n"
+
         # result += "There is no need to output all 10 questions if you know that the questions you formulated contain all necessary information for fact-checking of the claim."
-        result += "Each question has one of four answer types: Boolean, Extractive, Abstractive and Unanswerable using the provided sources.\nAfter formulating Your questions and their answers using the provided sources, You evaluate the possible veracity verdicts (Supported claim, Refuted claim, Not enough evidence, or Conflicting evidence/Cherrypicking) given your claim and evidence on a Likert scale (1 - Strongly disagree, 2 - Disagree, 3 - Neutral, 4 - Agree, 5 - Strongly agree). Ultimately, you note the single likeliest veracity verdict according to your best knowledge.\nThe facts must be coming from these sources, please refer them using assigned IDs:"
+        result += f"Each question has one of four answer types: Boolean, Extractive, Abstractive and Unanswerable using the provided sources.\nAfter formulating Your questions and their answers using the provided sources, You evaluate the possible veracity verdicts (Supported claim, Refuted claim, Not enough evidence, or Conflicting evidence/Cherrypicking) given your claim and evidence on a Likert scale (1 - Strongly disagree, 2 - Disagree, 3 - Neutral, 4 - Agree, 5 - Strongly agree). Ultimately, you note the single likeliest veracity verdict according to your best knowledge.\nThe facts must be coming from the sources listed below. The first {k} sources was retrieved using textual search and the rest was retrieved using reverse image search (google lens). The sources are numbered - sources 1 through {k} are related to the claim text, "
+        if len(retrieval_result.images) > 1:
+            result += " sources 11-19 were retrieved for the first user image, 21-29 to the second etc. You may therefore assume that each of the image-based sources was published alongside a picture similar to the respective user image. "
+        else:
+            result += " sources 11-19 were retrieved for the user image. You may therefore assume that each of the image-based sources was published alongside a picture similar to the user image. "
         for i, e in enumerate(retrieval_result):
             result += f"\n---\n## Source ID: {i+1} ({e.metadata['url']})\n"
             result += "\n".join([e.metadata["context_before"], e.page_content, e.metadata["context_after"]])
+        for i, img in enumerate(retrieval_result.images):
+            for j, img in enumerate(img):
+                result += f"\n---\n## Image Source ID: {j + 1 + (i+1)*10} (related to user image {i+1}, "
+                result += f" Title : {img['title']}, date: {img['page_date']}, url: {img['url']}, image url: {img['imageUrl']})\n"
+            if "content" in img:
+                result += img["content"]
         result += """\n---\n## Output formatting\nPlease, you MUST only print the output in the following output format:
 ```json
 {
@@ -470,23 +490,24 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
         "Not Enough Evidence": "<Likert-scale rating of how much You agree with the 'Not Enough Evidence' veracity classification>",
         "Conflicting Evidence/Cherrypicking": "<Likert-scale rating of how much You agree with the 'Conflicting Evidence/Cherrypicking' veracity classification>"
     },
-    "veracity_verdict": "<The suggested veracity classification for the claim>"
+    "veracity_verdict": "<The suggested veracity classification for the claim>",
+    "verdict_justification": "<A brief justification of the veracity verdict>"
 }
 ```"""
 
         # add few shot examples
         result += """\n---\n## Few-shot learning\nYou have access to the following few-shot learning examples for questions and answers.:\n"""
         for example in few_shot_examples:
-            result += f'\n### Question examples for claim "{example["claim"]}" (verdict {example["label"]})'
+            result += f'\n### Question examples for claim "{example["claim_text"]}" (verdict {example["label"]})'
             for q in example["questions"]:
                 question = q["question"]
                 if "answers" not in q or not q["answers"]:
-                    q["answers"] = [{"answer": "No answer could be found.", "answer_type": "Unanswerable"}]
+                    q["answers"] = [{"answer_text": "No answer could be found.", "answer_type": "Unanswerable"}]
                 for a in q["answers"]:
                     if a["answer_type"] == "Boolean":
-                        answer = a["answer"] + ". " + a["boolean_explanation"]
+                        answer = a["answer_text"] + ". " + a["boolean_explanation"]
                     else:
-                        answer = a["answer"]
+                        answer = a["answer_text"]
                     result += f'\n"question": "{question}", "answer": "{answer}", "answer_type": "{a["answer_type"]}"\n'
         return result
 
@@ -502,19 +523,33 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
         system_prompt = self.format_system_prompt(
             retrieval_result, few_shot_examples, datapoint.speaker, datapoint.claim_date
         )
+        user_message_content = [
+            {"type": "text", "text": datapoint.claim},
+        ]
+
+        for i, img in enumerate(datapoint.claim_images):
+            user_message_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"{IMAGE_BASE_URL}/{img}".replace("#", "_"),
+                    },
+                }
+            )
+
         # call gpt
         self.batch.append(
             {
-                "custom_id": f"averitec-{datapoint.claim_id}",
+                "custom_id": f"averimatec-{datapoint.claim_id}",
                 "method": "POST",
                 "url": "/v1/chat/completions",
                 "body": {
-                    "model": "gpt-4o",
+                    "model": "gpt-5.1",
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": claim},
+                        {"role": "user", "content": user_message_content},
                     ],
-                    "temperature": 0,
+                    # "temperature": 0,
                 },
             }
         )
