@@ -33,7 +33,8 @@ class Datapoint:
     @classmethod
     def from_dict(cls, json_data: dict, claim_id: int = None):
         json_data = json_data.copy()
-        metadata = json_data.pop("metadata", {})
+        metadata = json_data.pop("metadata", {}).copy()
+        # print(metadata)
         return cls(
             claim=json_data.pop("claim_text"),
             claim_id=json_data.pop("claim_id", claim_id),
