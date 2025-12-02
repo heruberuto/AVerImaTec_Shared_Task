@@ -2,6 +2,7 @@ import numpy as np
 import json, dirtyjson
 import os
 import time
+from sympy import Li
 from tqdm import tqdm
 from dataclasses import dataclass, field
 from typing import Any, List, Dict
@@ -17,6 +18,7 @@ import nltk
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = "sk-dummy"
 
+
 @dataclass
 class Evidence:
     question: str = None
@@ -24,6 +26,7 @@ class Evidence:
     url: str = None
     scraped_text: str = None
     answer_type: str = None
+    images: List[str] = field(default_factory=list)
 
     def to_dict(self):
         result = {
@@ -31,6 +34,7 @@ class Evidence:
             "answer": self.answer,
             "url": self.url,
             "scraped_text": self.scraped_text,
+            "images": self.images,
         }
         if self.answer_type and False:
             result["answer_type"] = self.answer_type
@@ -38,7 +42,7 @@ class Evidence:
         if self.url is None:
             result["answer_type"] = "Unanswerable"
             result["answer"] = "No answer could be found."
-            #result["comment"] = self.answer
+            # result["comment"] = self.answer
         return result
 
 
@@ -72,10 +76,10 @@ class EvidenceGenerator:
 
     @classmethod
     def parse_likert(cls, likert_string: str) -> float:
-        #if not string, cast to string
+        # if not string, cast to string
         if not isinstance(likert_string, str):
             likert_string = str(likert_string)
-            
+
         if "1" in likert_string or ("strong" in likert_string and "disagree" in likert_string):
             return -2
         if "5" in likert_string or ("strong" in likert_string and "agree" in likert_string):
@@ -198,37 +202,6 @@ class GptEvidenceGenerator(EvidenceGenerator):
                 "llm_output": gpt_data,
             },
         )
-
-
-class FixedFewShotEvidenceGenerator(GptEvidenceGenerator):
-    def format_system_prompt(self, retrieval_result: RetrievalResult) -> str:
-        result = "You are a professional fact checker, formulate up to 10 questions that cover all the facts needed to validate whether the factual statement (in User message) is true, false, uncertain or a matter of opinion.\nAfter formulating Your questions and their answers using the provided sources, You evaluate the possible veracity verdicts (Supported claim, Refuted claim, Not enough evidence, or Conflicting evidence/Cherrypicking) given your claim and evidence on a Likert scale (1 - Strongly disagree, 2 - Disagree, 3 - Neutral, 4 - Agree, 5 - Strongly agree).\nThe facts must be coming from these sources, please refer them using assigned IDs:"
-        for i, e in enumerate(retrieval_result):
-            result += f"\n---\n## Source ID: {i+1} ({e.metadata['url']})\n"
-            result += "\n".join([e.metadata["context_before"], e.page_content, e.metadata["context_after"]])
-        result += """\n---\n## Output formatting\nPlease, you MUST only print the output in the following output format:
-```json
-{
-    "questions":
-        [
-            {"question": "<Your first question>", "answer": "<The answer to the Your first question>", "source": "<Single numeric source ID backing the answer for Your first question>"},
-            {"question": "<Your second question>", "answer": "<The answer to the Your second question>", "source": "<Single numeric Source ID backing the answer for Your second question>"}
-        ],
-    "claim_veracity": {
-        "Supported": "<Likert-scale rating of how much You agree with the 'Supported' veracity classification>",
-        "Refuted": "<Likert-scale rating of how much You agree with the 'Refuted' veracity classification>",
-        "Not Enough Evidence": "<Likert-scale rating of how much You agree with the 'Not Enough Evidence' veracity classification>",
-        "Conflicting Evidence/Cherrypicking": "<Likert-scale rating of how much You agree with the 'Conflicting Evidence/Cherrypicking' veracity classification>"
-    }
-}
-```"""
-        result += """\n---\n## Few-shot learning\nYou have access to the following few-shot learning examples for questions and answers.:\n
-            question: When was Donald trump elected? answer: November 2016\n
-            question: Was the U.S economy stagnant in 2016? anser: The IMF marked down its forecast for the United States in 2016 to 1.6 percent, from 2.2 percent in July 2016.\n
-            question: Did Joe Biden vote for the Iraq War? answer: Yes. When Joe Biden was a U.S. Senator, he voted in favor of a resolution on Iraq in October 2022.\n
-            question: When did President Buhari sign a bill repealing the Police Act Cap. P19. Laws of the Federation, 2004? answer: The president in a memo dated September 16, 2020, communicated his assent to the Bill to the National Assembly, through the Clerk of the legislature.
-        """
-        return result
 
 
 class DynamicFewShotEvidenceGenerator(GptEvidenceGenerator):
@@ -469,12 +442,15 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
         super().__init__(model, client)
 
     def format_system_prompt(
-        self, retrieval_result: RetrievalResult, few_shot_examples, author=None, date=None
+        self, retrieval_result: RetrievalResult, few_shot_examples, author=None, date=None, medium=None
     ) -> str:
         # alternative for not outputing 10 every time - maybe better for classfiers (not problem now): (There is no need to output all 10 questions if you know that the questions contain all necessary information for fact-checking of the claim)
         result = "You are a professional fact checker, formulate up to 10 questions that cover all the facts needed to validate whether the factual statement (in User message) is true, false, uncertain or a matter of opinion. "
         if author and date:
-            result += "The claim was made by " + author + " on " + date + "."
+            result += "The claim was made by " + author + " on " + date
+            if medium:
+                result += " via " + medium
+            result += ".\n"
         # result += "There is no need to output all 10 questions if you know that the questions you formulated contain all necessary information for fact-checking of the claim."
         result += "Each question has one of four answer types: Boolean, Extractive, Abstractive and Unanswerable using the provided sources.\nAfter formulating Your questions and their answers using the provided sources, You evaluate the possible veracity verdicts (Supported claim, Refuted claim, Not enough evidence, or Conflicting evidence/Cherrypicking) given your claim and evidence on a Likert scale (1 - Strongly disagree, 2 - Disagree, 3 - Neutral, 4 - Agree, 5 - Strongly agree). Ultimately, you note the single likeliest veracity verdict according to your best knowledge.\nThe facts must be coming from these sources, please refer them using assigned IDs:"
         for i, e in enumerate(retrieval_result):
@@ -543,84 +519,3 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
             }
         )
         return EvidenceGenerationResult(evidences=[], metadata={"suggested_label": [0, 0, 0, 0]})
-
-
-class ClaudeDFSEvidenceGenerator(DynamicFewShotEvidenceGenerator):
-    def __init__(
-        self,
-        model="claude-3-5-sonnet@20240620",
-        region="europe-west1",
-        project_id="monterrey-177809",
-        reference_corpus_path="/mnt/data/factcheck/averitec-data/data/train.json",
-        k=10,
-    ):
-        # load reference (train) corpus
-        with open(reference_corpus_path, "r") as f:
-            self.reference_corpus = json.load(f)
-
-        # prepare tokenized bm25 corpus
-        tokenized_corpus = []
-        for example in self.reference_corpus:
-            tokenized_corpus.append(nltk.word_tokenize(example["claim"]))
-
-        # initialize bm25 model
-        self.bm25 = BM25Okapi(tokenized_corpus)
-
-        # number of retrieved few shot examples
-        self.k = k
-
-        from anthropic import AnthropicVertex
-
-        self.model = model
-        self.last_llm_output = None
-        self.client = AnthropicVertex(region=region, project_id=project_id)
-        self.gpt_fallback = GptEvidenceGenerator()
-        super().__init__(model, self.client, reference_corpus_path, k)
-
-    def get_claude_message(self, system, user, temperature=0.0):
-        while True:
-            try:
-                return (
-                    self.client.messages.create(
-                        system=system,
-                        messages=[{"role": "user", "content": user}],
-                        model=self.model,
-                        max_tokens=2000,
-                        temperature=temperature,
-                    )
-                    .content[0]
-                    .text
-                )
-            except Exception as e:
-                print(e)
-                time.sleep(5)
-
-    def __call__(
-        self, datapoint: Datapoint, retrieval_result: RetrievalResult, *args, **kwargs
-    ) -> EvidenceGenerationResult:
-        try:
-            claim = datapoint.claim
-            scores = self.bm25.get_scores(nltk.word_tokenize(claim))
-            top_n = np.argsort(scores)[::-1][: self.k]
-            few_shot_examples = [self.reference_corpus[i] for i in top_n]
-            # get system prompt
-            claude_result = self.get_claude_message(
-                self.format_system_prompt(retrieval_result, few_shot_examples), datapoint.claim
-            )
-            self.last_llm_output = claude_result
-            claude_data = self.parse_json(claude_result)
-            if not claude_data:
-                raise Exception("No data returned from Claude")
-
-            return EvidenceGenerationResult(
-                evidences=self.parse_evidence(claude_data["questions"], retrieval_result),
-                metadata={
-                    "suggested_label": self.parse_label_probabilities(claude_data["claim_veracity"]),
-                    "llm_type": self.model,
-                    "llm_output": claude_data,
-                },
-            )
-
-        except Exception as e:
-            print(e)
-            return self.gpt_fallback(datapoint, retrieval_result, *args, **kwargs)

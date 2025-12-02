@@ -12,6 +12,7 @@ from utils.chat import SimpleJSONChat
 class RetrievalResult:
     """Container for retrieved documents with list-like interface."""
     documents: List[Document] = field(default_factory=list)
+    images: List[Any] = field(default_factory=list)
     metadata: Dict[str, Any] = None
 
     def __iter__(self):
