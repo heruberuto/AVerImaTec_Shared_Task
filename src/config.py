@@ -4,10 +4,10 @@ import argparse
 def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--ROOT_PATH", type=str, default=""
+        "--ROOT_PATH", type=str, default="/mnt/personal/ullriher/aic_averimatec"
     )  # remember to set your root_path here --  absolute path for AVerImaTeC project
     parser.add_argument(
-        "--TEST_MODE", type=str, default="test"
+        "--TEST_MODE", type=str, default="val"
     )  # remember to set your root_path here --  absolute path for AVerImaTeC project
     parser.add_argument("--LLM_NAME", type=str, default="qwen")  # mistral
     parser.add_argument("--MLLM_NAME", type=str, default="qwen")  # llava-next, qwen
@@ -37,7 +37,7 @@ def parse_opt():
         "--DATA_STORE", type=bool, default=False
     )  # whether using our provided data/knowledge store for evidence retrieval
     parser.add_argument(
-        "--DATASTORE_PATH", type=str, default=""
+        "--DATASTORE_PATH", type=str, default="/mnt/data/factcheck/averimatec"
     )  # set your path to the download knowledge store if using provided data store
     args = parser.parse_args()
     return args

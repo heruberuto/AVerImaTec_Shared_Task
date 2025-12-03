@@ -2,3 +2,4 @@
 logs/*
 logs
 **/__pycache__/
+prepare_submission/private_info/**

@@ -67,7 +67,7 @@ if __name__ == "__main__":
     print("Root dir:", args.root_dir)
     p2_data = load_json(os.path.join(args.root_dir, "data/data_clean/split_data/test.json"))
     if len(args.pred_file_path) > 0:
-        pred_file = load_json(pred_file_path)
+        pred_file = load_json(args.pred_file_path)
     else:
         pred_file = load_json(
             os.path.join(
