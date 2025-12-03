@@ -39,8 +39,12 @@ if __name__ == "__main__":
     parser.add_argument("--eval_model", default="google/gemma-3-27b-it")
     parser.add_argument("--llm_name", default="gemma")
     parser.add_argument("--mllm_name", default="gemma")
-    parser.add_argument("--pred_file_path", default="")
-    parser.add_argument("--root_dir", default="")  # this is the absolute path where you put AVerImaTec.
+    parser.add_argument(
+        "--pred_file_path", default="/mnt/data/factcheck/averimatec/submissions/submission.json"
+    )
+    parser.add_argument(
+        "--root_dir", default="/mnt/data/factcheck/averimatec"
+    )  # this is the absolute path where you put AVerImaTec.
     parser.add_argument(
         "--cache_dir", default=""
     )  # this is the absolute path where you save your huggingface model
@@ -65,7 +69,8 @@ if __name__ == "__main__":
     mllm = {"model": model.eval(), "processor": processor}
 
     print("Root dir:", args.root_dir)
-    p2_data = load_json(os.path.join(args.root_dir, "data/data_clean/split_data/test.json"))
+    #p2_data = load_json(os.path.join(args.root_dir, "data/data_clean/split_data/test.json"))
+    p2_data = load_json(os.path.join(args.root_dir, "val.json"))
     if len(args.pred_file_path) > 0:
         pred_file = load_json(args.pred_file_path)
     else:
