@@ -14,11 +14,24 @@ from labels import label2id
 from openai import OpenAI
 from rank_bm25 import BM25Okapi
 import nltk
-
+import base64
+import requests
+MEM = {}
 IMAGE_BASE_URL = f"https://fcheck.fel.cvut.cz/images/averimatec"
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = "sk-dummy"
 
+def jpg_to_base64(jpg_url):
+    response = requests.get(jpg_url)
+    if response.status_code == 200:
+        print("FAIL")
+        return base64.b64encode(response.content).decode('utf-8')
+    else:
+        return None
+
+def filesystem_base64(jpg_path):
+    with open(jpg_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
 
 @dataclass
 class Evidence:
@@ -31,8 +44,8 @@ class Evidence:
 
     def to_dict(self):
         result = {
-            "question": self.question,
-            "answer": self.answer,
+            "text": self.answer, # or question + answer?
+            #"question": self.question,
             "url": self.url,
             # "scraped_text": self.scraped_text,
             "images": self.images,
@@ -50,6 +63,7 @@ class Evidence:
 @dataclass
 class EvidenceGenerationResult:
     evidences: List[Evidence] = field(default_factory=list)
+    justification: str = None
     metadata: Dict[str, Any] = None
 
     def __iter__(self):
@@ -135,14 +149,22 @@ class EvidenceGenerator:
             try:
                 id = int(str(e["source"]).split(",")[0]) - 1
                 evidence.answer_type = cls.parse_answer_type(e.get("answer_type", ""))
-                evidence.url = retrieval_result[id].metadata["url"]
-                evidence.scraped_text = "\n".join(
-                    [
-                        retrieval_result[id].metadata["context_before"],
-                        retrieval_result[id].page_content,
-                        retrieval_result[id].metadata["context_after"],
-                    ]
-                )
+                if id >= 10:
+                    image_id = id // 10 - 1
+                    ris_id = id % 10
+                    img = retrieval_result.images[image_id][ris_id]
+                    evidence.url = img["url"]
+                    evidence.scraped_text = img["title"] 
+                    evidence.images = [jpg_to_base64(img["thumbnailUrl"])]   
+                else:
+                    evidence.url = retrieval_result[id].metadata["url"]
+                    evidence.scraped_text = "\n".join(
+                        [
+                            retrieval_result[id].metadata["context_before"],
+                            retrieval_result[id].page_content,
+                            retrieval_result[id].metadata["context_after"],
+                        ]
+                    )
             except:
                 evidence.url = None
                 evidence.scraped_text = None
@@ -389,7 +411,8 @@ class GptBatchedEvidenceGenerator(GptEvidenceGenerator):
                 suggested_label = self.parse_label(gpt_data["veracity_verdict"])
             else:
                 suggested_label = label_confidences
-
+            if "verdict_justification" in gpt_data:
+                justification = gpt_data["verdict_justification"]
             evidence_generation_result = EvidenceGenerationResult(
                 evidences=self.parse_evidence(gpt_data["questions"], pipeline_result.retrieval_result),
                 metadata={
@@ -398,6 +421,7 @@ class GptBatchedEvidenceGenerator(GptEvidenceGenerator):
                     "llm_type": self.client.model,
                     "llm_output": gpt_data,
                 },
+                justification=justification
             )
         except Exception as e:
             print(gpt_result)
@@ -504,11 +528,14 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
                 if "answers" not in q or not q["answers"]:
                     q["answers"] = [{"answer_text": "No answer could be found.", "answer_type": "Unanswerable"}]
                 for a in q["answers"]:
-                    if a["answer_type"] == "Boolean":
-                        answer = a["answer_text"] + ". " + a["boolean_explanation"]
-                    else:
-                        answer = a["answer_text"]
-                    result += f'\n"question": "{question}", "answer": "{answer}", "answer_type": "{a["answer_type"]}"\n'
+                    try:
+                        if a["answer_type"] == "Boolean":
+                            answer = a["answer_text"] + ". " + a["boolean_explanation"]
+                        else:
+                            answer = a["answer_text"]
+                        result += f'\n"question": "{question}", "answer": "{answer}", "answer_type": "{a["answer_type"]}"\n'
+                    except KeyError:
+                        pass
         return result
 
     def __call__(
@@ -528,11 +555,12 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
         ]
 
         for i, img in enumerate(datapoint.claim_images):
+            base64_image = filesystem_base64("/mnt/data/factcheck/averimatec/images/"+img)
             user_message_content.append(
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": f"{IMAGE_BASE_URL}/{img}".replace("#", "_"),
+                        "url": f"data:image/jpeg;base64,{base64_image}",
                     },
                 }
             )

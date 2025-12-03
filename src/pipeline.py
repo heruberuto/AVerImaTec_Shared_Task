@@ -15,11 +15,18 @@ class PipelineResult:
     classification_result: ClassificationResult = None
 
     def to_submission(self):
+        questions = []
+        evidence = []
+        for e in self.evidence_generation_result:
+            questions.append(e.question)
+            evidence.append(e.to_dict())
         return {
-            "claim_id": self.datapoint.claim_id,
+            "id": self.datapoint.claim_id,
             "claim": self.datapoint.claim,
-            "evidence": [e.to_dict() for e in self.evidence_generation_result if True or e.url is not None],
-            "pred_label": str(self.classification_result),
+            "questions": questions,
+            "evidence": evidence,
+            "verdict": str(self.classification_result),
+            "justification": self.evidence_generation_result.justification
         }
 
 
