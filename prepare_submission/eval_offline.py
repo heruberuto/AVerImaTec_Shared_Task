@@ -7,7 +7,7 @@ import argparse
 import sys
 
 sys.path.append("..")
-root_dir = os.path.abspath("..")
+root_dir = os.path.abspath("/mnt/personal/ullriher/aic_averimatec")
 from ref_eval import val_evid_idv, compute_image_scores, textual_val_single
 from qa_to_evidence import qa_to_evid
 from utils import convert_qa_format
@@ -39,6 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_model", default="google/gemma-3-27b-it")
     parser.add_argument("--llm_name", default="gemma")
     parser.add_argument("--mllm_name", default="gemma")
+    parser.add_argument("--eval_name", default=None)
     parser.add_argument(
         "--pred_file_path", default="/mnt/data/factcheck/averimatec/submissions/submission.json"
     )
@@ -51,7 +52,8 @@ if __name__ == "__main__":
     parser.add_argument("--save_num", type=str, default="4")
     parser.add_argument("--debug", type=bool, default=False)
     args = parser.parse_args()
-
+    if args.eval_name is None:
+        args.eval_name = "_".join([args.llm_name, args.mllm_name, str(args.save_num)])
     """
     Potential issues related to Gemma: https://github.com/google-deepmind/gemma/issues/169
     """
@@ -69,7 +71,7 @@ if __name__ == "__main__":
     mllm = {"model": model.eval(), "processor": processor}
 
     print("Root dir:", args.root_dir)
-    #p2_data = load_json(os.path.join(args.root_dir, "data/data_clean/split_data/test.json"))
+    # p2_data = load_json(os.path.join(args.root_dir, "data/data_clean/split_data/test.json"))
     p2_data = load_json(os.path.join(args.root_dir, "val.json"))
     if len(args.pred_file_path) > 0:
         pred_file = load_json(args.pred_file_path)

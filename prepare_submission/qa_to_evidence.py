@@ -1,6 +1,6 @@
 import os
 
-root_dir = os.path.abspath("..")
+root_dir = os.path.abspath("/mnt/personal/ullriher/aic_averimatec")
 import torch
 
 
