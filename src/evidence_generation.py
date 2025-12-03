@@ -16,27 +16,32 @@ from rank_bm25 import BM25Okapi
 import nltk
 import base64
 import requests
+
 MEM = {}
 IMAGE_BASE_URL = f"https://fcheck.fel.cvut.cz/images/averimatec"
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = "sk-dummy"
 
+
 def jpg_to_base64(jpg_url):
     response = requests.get(jpg_url)
     if response.status_code == 200:
-        #print("FAIL")
-        return base64.b64encode(response.content).decode('utf-8')
+        # print("FAIL")
+        return base64.b64encode(response.content).decode("utf-8")
     else:
         return None
 
+
 def filesystem_base64(jpg_path):
     with open(jpg_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode('utf-8')
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
 
 @dataclass
 class Evidence:
     question: str = None
     answer: str = None
+    evidence_text: str = None
     url: str = None
     scraped_text: str = None
     answer_type: str = None
@@ -44,12 +49,14 @@ class Evidence:
 
     def to_dict(self):
         result = {
-            "text": self.answer, # or question + answer?
-            #"question": self.question,
+            "text": self.answer,  # or question + answer?
+            # "question": self.question,
             "url": self.url,
             # "scraped_text": self.scraped_text,
             "images": self.images,
         }
+        if self.evidence_text:
+            result["text"] = self.evidence_text
         if self.answer_type and False:
             result["answer_type"] = self.answer_type
 
@@ -145,17 +152,23 @@ class EvidenceGenerator:
     def parse_evidence(cls, input_data, retrieval_result) -> List[Evidence]:
         result = []
         for e in input_data:
-            evidence = Evidence(question=e.get("question", None), answer=e.get("answer", None))
+            evidence = Evidence(
+                question=e.get("question", None),
+                answer=e.get("answer", None),
+                evidence_text=e.get("evidence_text", None),
+            )
             try:
                 id = int(str(e["source"]).split(",")[0]) - 1
                 evidence.answer_type = cls.parse_answer_type(e.get("answer_type", ""))
+                if evidence.evidence_text:
+                    evidence.evidence_text = evidence.evidence_text.replace("[IMG]", "[IMG_1]")
                 if id >= 10:
                     image_id = id // 10 - 1
                     ris_id = id % 10
                     img = retrieval_result.images[image_id][ris_id]
                     evidence.url = img["url"]
-                    evidence.scraped_text = img["title"] 
-                    evidence.images = [jpg_to_base64(img["thumbnailUrl"])]   
+                    evidence.scraped_text = img["title"]
+                    evidence.images = [jpg_to_base64(img["thumbnailUrl"])]
                 else:
                     evidence.url = retrieval_result[id].metadata["url"]
                     evidence.scraped_text = "\n".join(
@@ -421,7 +434,7 @@ class GptBatchedEvidenceGenerator(GptEvidenceGenerator):
                     "llm_type": self.client.model,
                     "llm_output": gpt_data,
                 },
-                justification=justification
+                justification=justification,
             )
         except Exception as e:
             print(gpt_result)
@@ -505,8 +518,8 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
 {
     "questions":
         [
-            {"question": "<Your first question>", "answer": "<The answer to the Your first question>", "source": "<Single numeric source ID backing the answer for Your first question>", "answer_type":"<The type of first answer>"},
-            {"question": "<Your second question>", "answer": "<The answer to the Your second question>", "source": "<Single numeric Source ID backing the answer for Your second question>", "answer_type":"<The type of second answer>"}
+            {"question": "<Your first question>", "answer": "<The answer to the Your first question>", "source": "<Single numeric source ID backing the answer for Your first question>", "answer_type":"<The type of first answer>", "evidence_text": "<Declarative sentence combining the question and answer, if image source was used, use [IMG] tag to refer to the image.>"},
+            {"question": "<Your second question>", "answer": "<The answer to the Your second question>", "source": "<Single numeric Source ID backing the answer for Your second question>", "answer_type":"<The type of second answer>", "evidence_text": "<Declarative sentence combining the question and answer, if image source was used, use [IMG] tag to refer to the image.>"}
         ],
     "claim_veracity": {
         "Supported": "<Likert-scale rating of how much You agree with the 'Supported' veracity classification>",
@@ -522,11 +535,15 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
         # add few shot examples
         result += """\n---\n## Few-shot learning\nYou have access to the following few-shot learning examples for questions and answers.:\n"""
         for example in few_shot_examples:
-            result += f'\n### Question examples for claim "{example["claim_text"]}" (verdict {example["label"]})'
+            result += (
+                f'\n### Question examples for claim "{example["claim_text"]}" (verdict {example["label"]})'
+            )
             for q in example["questions"]:
                 question = q["question"]
                 if "answers" not in q or not q["answers"]:
-                    q["answers"] = [{"answer_text": "No answer could be found.", "answer_type": "Unanswerable"}]
+                    q["answers"] = [
+                        {"answer_text": "No answer could be found.", "answer_type": "Unanswerable"}
+                    ]
                 for a in q["answers"]:
                     try:
                         if a["answer_type"] == "Boolean":
@@ -555,7 +572,7 @@ class DynamicFewShotBatchedEvidenceGenerator(GptBatchedEvidenceGenerator):
         ]
 
         for i, img in enumerate(datapoint.claim_images):
-            base64_image = filesystem_base64("/mnt/data/factcheck/averimatec/images/"+img)
+            base64_image = filesystem_base64("/mnt/data/factcheck/averimatec/images/" + img)
             user_message_content.append(
                 {
                     "type": "image_url",
