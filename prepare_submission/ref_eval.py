@@ -8,9 +8,6 @@ sys.path.append("..")
 import re
 import random
 
-angles = [Image.ROTATE_90, Image.ROTATE_180, Image.ROTATE_270]
-resizes = [(300, 300), (100, 500), (500, 100)]
-
 root_dir = os.path.abspath("..")
 text_val_demo = open(os.path.join(root_dir, "templates/evid_evaluation_text.txt")).readlines()
 text_val_demo = "".join(text_val_demo)
@@ -195,15 +192,6 @@ def gen_img_text_split(evid_context, pred=False):
                 for m, sp_str in enumerate(split_string):
                     if sp_str in img_token_list:
                         img_idx = re.findall(r"\d+", sp_str)[0]
-                        """
-                        manip_type=random.randint(0,1)
-                        if manip_type==0:
-                            rotate_angle=random.randint(0,2)
-                            inputs.append(Image.open(evid_images[int(img_idx)-1]).convert('RGB').transpose(angles[rotate_angle]))
-                        else:
-                            resize_type=random.randint(0,2)
-                            inputs.append(Image.open(evid_images[int(img_idx)-1]).convert('RGB').resize(resizes[resize_type]))
-                        """
                         inputs.append(Image.open(evid_images[int(img_idx) - 1]).convert("RGB"))
                     else:
                         if m == 0:
@@ -281,15 +269,6 @@ def compute_image_scores(model, model_name, pred_evid, ref_evid, score):
                 if "gemini" in model_name:
                     inputs = [prompt]
                     for img in imgs_pred:
-                        """
-                        manip_type=random.randint(0,1)
-                        if manip_type==0:
-                            rotate_angle=random.randint(0,2)
-                            inputs.append(Image.open(img).convert('RGB').transpose(angles[rotate_angle]))
-                        else:
-                            resize_type=random.randint(0,2)
-                            inputs.append(Image.open(img).convert('RGB').resize(resizes[resize_type]))
-                        """
                         inputs.append(Image.open(img).convert("RGB"))
                     inputs.append("\n[IMG_SET_2]:")
                     for img in imgs_ref:
@@ -305,15 +284,6 @@ def compute_image_scores(model, model_name, pred_evid, ref_evid, score):
                         }
                     ]
                     for img in imgs_pred:
-                        """
-                        manip_type=random.randint(0,1)
-                        if manip_type==0:
-                            rotate_angle=random.randint(0,2)
-                            inputs.append(Image.open(img).convert('RGB').transpose(angles[rotate_angle]))
-                        else:
-                            resize_type=random.randint(0,2)
-                            inputs.append(Image.open(img).convert('RGB').resize(resizes[resize_type]))
-                        """
                         messages[0]["content"].append({"type": "image", "image": img})
                     messages[0]["content"].append({"type": "text", "text": "\n[IMG_SET_2]:"})
                     for img in imgs_ref:
@@ -407,7 +377,6 @@ def compute_image_scores(model, model_name, pred_evid, ref_evid, score):
 
 
 def textual_val_single(ref, pred, path, eval_name, model, eval_type="", debug_mode=False):
-    # scores={user:{} for user in all_users_pred}
     if eval_type == "justification":
         val_demo = justi_val_demo
     elif eval_type == "question":
@@ -443,12 +412,10 @@ def textual_val_single(ref, pred, path, eval_name, model, eval_type="", debug_mo
         feedback = model["processor"].batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
 
     processed_score = score_extraction(feedback)
-    # raw_response[req_id]=feedback
-    # processed_response[req_id]=processed_score
-    """
+
     if debug_mode:
-        print (eval_type)
-        print (processed_score)
-        print (feedback,'\n\n')
-    """
+        print(eval_type)
+        print(processed_score)
+        print(feedback, "\n\n")
+
     return feedback, processed_score

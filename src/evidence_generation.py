@@ -24,7 +24,7 @@ if "OPENAI_API_KEY" not in os.environ:
 def jpg_to_base64(jpg_url):
     response = requests.get(jpg_url)
     if response.status_code == 200:
-        print("FAIL")
+        #print("FAIL")
         return base64.b64encode(response.content).decode('utf-8')
     else:
         return None
